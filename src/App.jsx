@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Mail, 
   Lock, 
@@ -17,9 +17,7 @@ import {
   ChevronRight,
   Flame,
   Lightbulb,
-  Cat,
-  Coffee,
-  HelpCircle
+  Compass
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { supabase, isMockMode, mockApi } from './supabaseClient';
@@ -117,7 +115,7 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [avatarSeed, setAvatarSeed] = useState(Math.random().toString(36).substring(7));
+  const [avatarSeed, setAvatarSeed] = useState(() => Math.random().toString(36).substring(7));
   const [authError, setAuthError] = useState(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
 
@@ -151,13 +149,33 @@ function App() {
   const avatarUrl = `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${avatarSeed}`;
 
   // Helper to show custom notification toasts
-  const addToast = (message, type = 'info') => {
+  const addToast = useCallback((message, type = 'info') => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
-  };
+  }, []);
+
+  const fetchFeed = useCallback(async () => {
+    setLoadingBlogs(true);
+    try {
+      const [blogsRes, likesRes] = await Promise.all([
+        db.blogs.select(),
+        db.likes.select()
+      ]);
+
+      if (blogsRes.error) throw blogsRes.error;
+      if (likesRes.error) throw likesRes.error;
+
+      setBlogs(blogsRes.data || []);
+      setLikes(likesRes.data || []);
+    } catch (err) {
+      addToast(err.message || 'Error fetching blogs!', 'error');
+    } finally {
+      setLoadingBlogs(false);
+    }
+  }, [addToast]);
 
   // Get current user details upon load
   useEffect(() => {
@@ -183,34 +201,14 @@ function App() {
       });
       return () => subscription.unsubscribe();
     }
-  }, []);
+  }, [addToast]);
 
   // Fetch blogs, likes and comments whenever session changes
   useEffect(() => {
     if (session) {
       fetchFeed();
     }
-  }, [session]);
-
-  const fetchFeed = async () => {
-    setLoadingBlogs(true);
-    try {
-      const [blogsRes, likesRes] = await Promise.all([
-        db.blogs.select(),
-        db.likes.select()
-      ]);
-
-      if (blogsRes.error) throw blogsRes.error;
-      if (likesRes.error) throw likesRes.error;
-
-      setBlogs(blogsRes.data || []);
-      setLikes(likesRes.data || []);
-    } catch (err) {
-      addToast(err.message || 'Error fetching blogs!', 'error');
-    } finally {
-      setLoadingBlogs(false);
-    }
-  };
+  }, [session, fetchFeed]);
 
   // Authentication handlers
   const handleAuth = async (e) => {
@@ -337,10 +335,8 @@ function App() {
   };
 
   // Toggle Like
-  const handleToggleLike = async (blogId) => {
+  const handleToggleLike = useCallback(async (blogId) => {
     try {
-      const userLiked = likes.some(l => l.blog_id === blogId && l.user_id === session.id);
-      
       const { action, error } = await db.likes.toggle(blogId, session.id);
       if (error) throw error;
 
@@ -362,7 +358,7 @@ function App() {
     } catch (err) {
       addToast(err.message, 'error');
     }
-  };
+  }, [session, addToast]);
 
   // Load and Toggle Comments section
   const handleToggleComments = async (blogId) => {

@@ -100,7 +100,7 @@ export const mockApi = {
       const session = getStorageItem('shivblogs_session', null);
       return { data: { user: session }, error: null };
     },
-    signUp: async ({ email, password, options }) => {
+    signUp: async ({ email, options }) => {
       await new Promise(r => setTimeout(r, 600));
       const users = getStorageItem('shivblogs_users', []);
       if (users.some(u => u.email === email)) {
@@ -117,7 +117,7 @@ export const mockApi = {
       setStorageItem('shivblogs_session', newUser);
       return { data: { user: newUser }, error: null };
     },
-    signInWithPassword: async ({ email, password }) => {
+    signInWithPassword: async ({ email }) => {
       await new Promise(r => setTimeout(r, 600));
       const users = getStorageItem('shivblogs_users', []);
       const user = users.find(u => u.email === email);
